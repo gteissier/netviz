@@ -9,7 +9,7 @@ The objective is to understand and visualize network flows between a group of Li
 
 The process is split in two steps:
 
-* **capture**: a snapshot of network and process information is taken on several Linux machines. ![capture.py](capture.py) serves this purpose, and generates a json file containing the required information. These snapshots will be stitched, and need to be gathered.
+* **capture**: a snapshot of network and process information is taken on several Linux machines. [capture.py](capture.py) serves this purpose, and generates a json file containing the required information. These snapshots will be stitched, and need to be gathered.
 * **stitch**: snapshots are loaded and stitched whenever possible. Flows between processes will generated as long as this flow starts and ends on machines of the group. Machines associated with a flow may be the same machine, in this case, it indicates a loopback flow.
 * **visualize**: simply use dot on generated graph file.
 
@@ -24,7 +24,7 @@ Several network sockets are captured:
 $ python3 capture.py > snapshot.json
 ```
 
-Next, retrieve the snapshot.json file and process it with ![stitch.py](stitch.py).
+Next, retrieve the snapshot.json file and process it with [stitch.py](stitch.py).
 
 ### Process related infos
 
@@ -56,4 +56,7 @@ $ python3 stitch.py --log debug ./vps.json > vps.dot
 
 ## visualize
 
+```
+dot -Tsvg < vps.dot > vps.svg
+```
 
