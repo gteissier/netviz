@@ -3,6 +3,7 @@
 import json
 import logging
 import os.path
+import html
 
 def gen_connected(a_rows, b_rows, applies_to_self=False):
   for i in range(len(a_rows)):
@@ -121,16 +122,16 @@ class Machine:
   def get_process_label(self, pid):
     process = self.get_process_by_pid(pid)
 
-    r = '<<table><th><td bgcolor="gray">%s</td></th>' % process['cmd']
+    r = '<<table border="1" cellborder="0" cellspacing="1"><tr><td bgcolor="gray"><b>%s</b></td></tr>' % html.escape(process['cmd'])
     r += '<tr><td bgcolor="lightgray">pid %d</td></tr>' % process['pid']
     if process['uid'] == 0:
       r += '<tr><td><font color="red"><b>uid %d</b></font></td></tr>' % process['uid']
     else:
       r += '<tr><td>uid %d</td></tr>' % process['uid']
     if 'unconfined' in process['selinux']:
-      r += '<tr><td><font color="red"><b>%s</b></font></td></tr>' % process['selinux']
+      r += '<tr><td><font color="red"><b>%s</b></font></td></tr>' % html.escape(process['selinux'])
     else:
-      r += '<tr><td>%s</td></tr>' % process['selinux']
+      r += '<tr><td>%s</td></tr>' % html.escape(process['selinux'])
     r += '</table>>'
 
     return r
@@ -150,9 +151,16 @@ class Machine:
         p_i = self.get_process(ino_i)
         p_j = other.get_process(ino_j)
 
+        label = '<<table border="0" cellborder="0" cellspacing="1" bgcolor="lightgray">'
+        label += '<tr border="0"><td align="right"><b>%s</b></td></tr>' % (rows.replace('_rows', ''))
+        flow_id = '%s:%d <-> %s:%d' % (extra_i['local'][0], extra_i['local'][1],
+          extra_j['local'][0], extra_j['local'][1])
+        label += '<tr border="0"><td>%s</td></tr>' % html.escape(flow_id)
+        label += '</table>>'
+
         if self != other or \
           (self == other and p_i != p_j):
-          yield (p_i, p_j)
+          yield (p_i, p_j, label)
 
 
 def stitch(captures):
@@ -162,15 +170,15 @@ def stitch(captures):
     for j in range(i, len(captures)):
       logging.info(f'Stitching {captures[i].name} to {captures[j].name}')
 
-      for (p_i, p_j) in captures[i].stitch_with(captures[j]):
+      for (p_i, p_j, label) in captures[i].stitch_with(captures[j]):
         logging.debug(f"Linking {captures[i].name}:{p_i['cmd']} with {captures[j].name}:{p_j['cmd']}")
-        links.add((i, p_i['pid'], j, p_j['pid']))
+        links.add((i, p_i['pid'], j, p_j['pid'], label))
 
   return links
 
 
 def write_dot_header(f):
-  f.write('graph G {\n')
+  f.write('graph {\n  splines="line";\nrankdir=LR;\n')
 
 def write_dot_footer(f):
   f.write('}\n')
@@ -217,7 +225,7 @@ if __name__ == '__main__':
 
   machines = {}
 
-  for (i, p_i, j, p_j) in links:
+  for (i, p_i, j, p_j, label) in links:
     if i not in machines: machines[i] = []
     if j not in machines: machines[j] = []
 
@@ -233,11 +241,11 @@ if __name__ == '__main__':
       p = captures[i].get_process_by_pid(pid)
       p_label = captures[i].get_process_label(pid)
 
-      outfile.write('    process_%d_%d [label=%s];\n' % (m.capture_rank, pid, p_label))
+      outfile.write('    process_%d_%d [shape="plaintext" label=%s];\n' % (m.capture_rank, pid, p_label))
     outfile.write('  }\n')
 
-  for (i, p_i, j, p_j) in links:
-    outfile.write('  process_%d_%d -- process_%d_%d;\n' %
-      (i, p_i, j, p_j))
+  for (i, p_i, j, p_j, label) in links:
+    outfile.write('  process_%d_%d -- process_%d_%d [label=%s];\n' %
+      (i, p_i, j, p_j, label))
 
   write_dot_footer(outfile)
