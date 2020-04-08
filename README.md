@@ -31,9 +31,9 @@ Next, retrieve the snapshot.json file and process it with [stitch.py](stitch.py)
 They are collected:
 
 * `/proc/pid/comm`: the name of the process
-* `/proc/pid/fd/`: the opened file descriptors, which will yield inodes associated with sockets
+* `/proc/pid/fd/[0-9]*`: the opened file descriptors, which will yield inodes, and allows to trace sockets back to processes
 * `/proc/pid/status`: the uid of the process
-* `/proc/pid/attr/current`: the SELinux context of the process
+* `/proc/pid/attr/current`: the security context of the process, which apparently works for SELinux or apparmor
 
 ### Network sockets
 
