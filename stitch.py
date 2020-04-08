@@ -51,19 +51,23 @@ class Machine:
         if type(extra['remote']) != list:
           raise ValueError(f"Wrong type for attribute remote: got {type(extra['remote'])}, expected list")
 
-        # Tag listeners
-        # raw-like sockets
-        if extra['type'] in ('raw', 'raw6', 'packet'):
-          extra['listener'] = True
-          self.net[ino] = extra
-          logging.debug(f'Tagged a listener {extra}')
-
-        # and unbound normal sockets
-        if extra['type'] in ('tcp', 'tcp6', 'udp', 'udp6') and \
-          extra['remote'] == ['0.0.0.0', 0] or extra['remote'] == ['::', 0]:
-          extra['listener'] = True
-          self.net[ino] = extra
-          logging.debug(f'Tagged a listener {extra}')
+      # Tag listeners
+      # raw-like sockets
+      if extra['type'] in ('raw', 'raw6', 'packet'):
+        extra['listener'] = True
+        self.net[ino] = extra
+        if 'local' in extra:
+          self.add_listener_to_process(ino, extra['type'], extra['local'])
+        else:
+          self.add_listener_to_process(ino, extra['type'], 'all')
+        logging.debug(f'Tagged a raw listener {extra}')
+      # and unconnected normal sockets
+      elif extra['type'] in ('tcp', 'tcp6', 'udp', 'udp6') and \
+        (extra['remote'] == ['0.0.0.0', 0] or extra['remote'] == ['::', 0]):
+        extra['listener'] = True
+        self.net[ino] = extra
+        self.add_listener_to_process(ino, extra['type'], extra['local'])
+        logging.debug(f'Tagged a listener {extra}')
 
     for (pid, process) in self.processes.items():
       if type(process) != dict:
@@ -102,6 +106,13 @@ class Machine:
           # we only yield this process once
           break
 
+  def add_listener_to_process(self, ino, _type, _local):
+    for (pid, p) in self.gen_processes_by_ino(ino):
+      if 'listeners' not in p:
+        p['listeners'] = []
+      p['listeners'].append((_type, _local))
+      self.processes[pid] = p
+
   def get_process(self, ino):
     matchings = [p for p in self.gen_processes_by_ino(ino)]
     if not matchings: return
@@ -124,14 +135,23 @@ class Machine:
 
     r = '<<table border="1" cellborder="0" cellspacing="1"><tr><td bgcolor="gray"><b>%s</b></td></tr>' % html.escape(process['cmd'])
     r += '<tr><td bgcolor="lightgray">pid %d</td></tr>' % process['pid']
+
+    # highlight processes running as root
     if process['uid'] == 0:
       r += '<tr><td><font color="red"><b>uid %d</b></font></td></tr>' % process['uid']
     else:
       r += '<tr><td>uid %d</td></tr>' % process['uid']
+
+    # highlight unconfined processes
     if 'unconfined' in process['selinux']:
       r += '<tr><td><font color="red"><b>%s</b></font></td></tr>' % html.escape(process['selinux'])
     else:
       r += '<tr><td>%s</td></tr>' % html.escape(process['selinux'])
+
+    if 'listeners' in process:
+      for (_type, _local) in process['listeners']:
+        r += '<tr><td bgcolor="lightgray">%s</td></tr>' % html.escape('%s %r' % (_type, _local))
+
     r += '</table>>'
 
     return r
@@ -178,7 +198,7 @@ def stitch(captures):
 
 
 def write_dot_header(f):
-  f.write('graph {\n  splines="line";\nrankdir=LR;\n')
+  f.write('graph {\n  rankdir=LR;\n')
 
 def write_dot_footer(f):
   f.write('}\n')
@@ -193,7 +213,9 @@ if __name__ == '__main__':
   parser.add_argument('--output', dest='output', type=str, default='-',
     help='An output file, defaults to stdout')
   parser.add_argument('--log', dest='loglevel', choices=('debug', 'warn', 'info'))
-  parser.set_defaults(verbose=False, loglevel='info')
+  parser.add_argument('--hide-unlinked-listeners', dest='hide_unlinked_listeners', action='store_true',
+    help='Hide processes that are not linked, defaults to false, they will be visualized')
+  parser.set_defaults(verbose=False, loglevel='info', hide_unlinked_listeners=False)
 
   args = parser.parse_args()
 
@@ -231,6 +253,15 @@ if __name__ == '__main__':
 
     machines[i].append(p_i)
     machines[j].append(p_j)
+
+  if not args.hide_unlinked_listeners:
+    logging.debug(f'Will sweep through processes to make unlinked ones visible')
+    for i in range(len(captures)):
+      c = captures[i]
+      for (pid, p) in c.processes.items():
+        if 'listeners' in p and p['listeners'] and pid not in machines[i]:
+          logging.debug(f'Make {c.name}:{pid} visible, as it is a listener')
+          machines[i].append(int(pid))
 
   LF = '\n'
   for i in machines:
