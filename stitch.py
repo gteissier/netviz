@@ -57,16 +57,16 @@ class Machine:
         extra['listener'] = True
         self.net[ino] = extra
         if 'local' in extra:
-          self.add_listener_to_process(ino, extra['type'], extra['local'])
+          self.add_listener_to_process(ino, extra['type'], 'proto=0x%x' % extra['local'])
         else:
-          self.add_listener_to_process(ino, extra['type'], 'all')
+          self.add_listener_to_process(ino, extra['type'], '')
         logging.debug(f'Tagged a raw listener {extra}')
       # and unconnected normal sockets
       elif extra['type'] in ('tcp', 'tcp6', 'udp', 'udp6') and \
         (extra['remote'] == ['0.0.0.0', 0] or extra['remote'] == ['::', 0]):
         extra['listener'] = True
         self.net[ino] = extra
-        self.add_listener_to_process(ino, extra['type'], extra['local'])
+        self.add_listener_to_process(ino, extra['type'], '%s:%d' % (extra['local'][0], extra['local'][1]))
         logging.debug(f'Tagged a listener {extra}')
 
     for (pid, process) in self.processes.items():
@@ -150,7 +150,7 @@ class Machine:
 
     if 'listeners' in process:
       for (_type, _local) in process['listeners']:
-        r += '<tr><td bgcolor="lightgray">%s</td></tr>' % html.escape('%s %r' % (_type, _local))
+        r += '<tr><td bgcolor="lightgray">%s</td></tr>' % html.escape('%s/%s' % (_type, _local))
 
     r += '</table>>'
 
