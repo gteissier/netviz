@@ -22,6 +22,12 @@ def gen_connected(a_rows, b_rows, applies_to_self=False):
 
 class Machine:
   def __init__(self, fname, name=None):
+    # each machine is given a name
+    # if no name is given in constructor, which the default
+    # then the name of the machine is the basename of the file, minus .json or .js
+    # this might bring troubles if captures are stored using a common basename in different directories
+    # if needed, command syntax might be changed to allow for naming on the command line
+    # and then use the non default third argument of the constructor
     if name is not None:
       self.name = name
     else:
@@ -29,16 +35,19 @@ class Machine:
 
     logging.info(f'Loading file {fname}, nicknamed {self.name}')
 
+    # load json file at once
     with open(fname, 'r') as f:
       r = json.load(f)
       self.processes = r['processes']
       self.net = r['net']
 
+    # verify types
     if type(self.net) != dict:
       raise ValueError(f'Wrong type for attribute net: got {type(self.net)}, expected dict')
     if type(self.processes) != dict:
       raise ValueError(f'Wrong type for attribute processes: got {type(self.processes)}, expected dict')
 
+    # verify types and values for network values
     for ino, extra in self.net.items():
       if 'type' not in extra:
         raise ValueError(f'Missing attribute type in {extra}')
@@ -69,6 +78,7 @@ class Machine:
         self.add_listener_to_process(ino, extra['type'], '%s:%d' % (extra['local'][0], extra['local'][1]))
         logging.debug(f'Tagged a listener {extra}')
 
+    # verify types and values for processes
     for (pid, process) in self.processes.items():
       if type(process) != dict:
         raise ValueError(f'Wrong type: got {type(process)}, expected dict')
@@ -89,6 +99,8 @@ class Machine:
     self.udp6_rows = [x for x in self.gen_inodes_by_type('udp6')]
     logging.debug(f'Loaded {len(self.udp6_rows)} UDP6 sockets')
 
+    # cluster_rank will be used during graph generation
+    # to create a monotonic counter
     self.cluster_rank = None
 
   def gen_inodes_by_type(self, nettype):
