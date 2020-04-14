@@ -103,6 +103,11 @@ class Machine:
     # to create a monotonic counter
     self.cluster_rank = None
 
+    # create an unknown process to handle cases where a socket exists
+    # and it cannot be bound to a process (either because it was dead since
+    # or capture was not started by root user)
+    self.unknown_process = {'pid': '-1', 'cmd': '?', 'inodes': []}
+
   def gen_inodes_by_type(self, nettype):
     for ino, extra in self.net.items():
       if nettype == extra['type']:
@@ -127,7 +132,7 @@ class Machine:
 
   def get_process(self, ino):
     matchings = [p for p in self.gen_processes_by_ino(ino)]
-    if not matchings: return
+    if not matchings: return self.unknown_process
 
     # it may happen to have multple processes using the same inode, e.g. unix fd passing
     # if so, return one of the process to have link with other machines
