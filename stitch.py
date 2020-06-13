@@ -272,11 +272,18 @@ if __name__ == '__main__':
     machines[j].append(p_j)
 
   if not args.hide_unlinked_listeners:
+    if not machines:
+      logging.debug(f'As there was no link between processes, and option hide-unlink-listeners was not specified')
+      logging.debug(f'Add all machines to list all the listener processes')
+
+      for i in range(len(captures)):
+        machines[i] = []
+
     logging.debug(f'Will sweep through processes to make unlinked ones visible')
     for i in range(len(captures)):
       c = captures[i]
       for (pid, p) in c.processes.items():
-        if 'listeners' in p and p['listeners'] and pid not in machines[i]:
+        if 'listeners' in p and p['listeners'] and machines and pid not in machines[i]:
           logging.debug(f'Make {c.name}:{pid} visible, as it is a listener')
           machines[i].append(int(pid))
 
